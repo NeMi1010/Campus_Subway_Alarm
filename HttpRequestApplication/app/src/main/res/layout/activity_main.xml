@@ -6,38 +6,39 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <TextView
-        android:id="@+id/main_textview"
-        android:layout_width="378dp"
-        android:layout_height="549dp"
-        android:layout_marginTop="20dp"
-        android:scrollbarStyle="outsideInset"
-        android:scrollbars="vertical"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/main_btn1" />
-
     <Button
         android:id="@+id/main_btn1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
-        android:text="조회"
+        android:text="@string/final_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/main_editurl" />
+        app:layout_constraintTop_toBottomOf="@+id/main_editUrl" />
 
     <AutoCompleteTextView
-        android:id="@+id/main_editurl"
+        android:id="@+id/main_editUrl"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="108dp"
         android:layout_marginTop="32dp"
         android:layout_marginEnd="108dp"
         android:completionThreshold="1"
-        android:text=""
+        android:hint="@string/inputView_hint"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <ListView
+        tools:listitem="@layout/listview_custom"
+        android:id="@+id/main_listview"
+        android:layout_width="370dp"
+        android:layout_height="500dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/main_btn1" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

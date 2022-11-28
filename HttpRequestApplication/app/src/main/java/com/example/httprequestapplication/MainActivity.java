@@ -2,14 +2,19 @@ package com.example.httprequestapplication;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.method.ScrollingMovementMethod;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.BaseAdapter;
 import android.widget.Button;
-import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
@@ -18,12 +23,18 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-    TextView mainTextView;
+//    TextView mainTextView;
     AutoCompleteTextView editUrl;
     Handler handler = new Handler();
     private ArrayList<String> stationlist = new ArrayList<String>();
+    private ListAdapter myAdapter;
+    Thread myProcess;
+
+    private void setMyAdapter(ListAdapter adapt) { this.myAdapter = adapt; }
 
     private void setStationlist(String myinput) {
         this.stationlist.add(myinput);
@@ -39,29 +50,41 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        editUrl = (AutoCompleteTextView) findViewById(R.id.main_editurl);
+        editUrl = (AutoCompleteTextView) findViewById(R.id.main_editUrl);
         editUrl.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, stationlist));
-        mainTextView = findViewById(R.id.main_textview);
-        mainTextView.setMovementMethod(new ScrollingMovementMethod());
+//        mainTextView = findViewById(R.id.main_textview);
+//        mainTextView.setMovementMethod(new ScrollingMovementMethod());
 
         Button button = findViewById(R.id.main_btn1);
         button.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
-                mainTextView.setText("");
+//                mainTextView.setText("");
 
                 final String urlStr =
                         "http://swopenapi.seoul.go.kr/api/subway/584f69544f746d6439316d63424956/xml/realtimeStationArrival/1/25/"
                                 + editUrl.getText().toString();
-                new Thread(new Runnable() {
+                myProcess = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         request(urlStr);
                     }
-                }).start();
+                });
 
-                mainTextView.setScrollY(0);
+                myProcess.start();
+//                mainTextView.setScrollY(0);
+
+                try {
+                    myProcess.join();
+                } catch (InterruptedException e) {
+
+                }
+
+                ListView listView = (ListView) findViewById(R.id.main_listview);
+                listView.setAdapter(myAdapter);
+                myAdapter.notifyDataSetChanged();
             }
+
         });
     }
 
@@ -87,15 +110,14 @@ public class MainActivity extends AppCompatActivity {
                     connection.disconnect();
                 }
                 else {
-                    println("현재 요청 상태 : " + resCode);
+                    System.out.println("현재 요청 상태 : " + resCode);
                 }
             }
         }
         catch (IOException e) {
-            println("예외 발생함 : "+e.toString());
+            System.out.println("예외 발생함 : "+e.toString());
         }
 
-        println("N호선 / 열차 방향 / 도착까지 남은 시간 / 안내메세지\n");
         ArrSubway(output.toString());
     }
 
@@ -106,23 +128,30 @@ public class MainActivity extends AppCompatActivity {
         private int arrivalDueTime;     //barvlDt, 도착 남은 시간
         private String arrivalMsg;      //arvlMsg2, 안내메세지
 
-        public void setSubwayId(String arr) {
-            this.SubwayId = Integer.parseInt(arr) - 1000;           // 호선 처리 개선 필요함
+        public SubwayData(String rawData) {
+            this.SubwayId = Integer.parseInt( rawData.substring(rawData.indexOf("<subwayId>")+10, rawData.indexOf("</subwayId")) ) - 1000;
+            this.trainLineId = rawData.substring(rawData.indexOf("<trainLineNm>")+13, rawData.indexOf("</trainLineNm"));
+            this.arrivalDueTime = Integer.parseInt( rawData.substring(rawData.indexOf("<barvlDt>")+9, rawData.indexOf("</barvlDt")) );
+            this.arrivalMsg = rawData.substring(rawData.indexOf("<arvlMsg2")+10, rawData.indexOf("</arvlMsg2"));
         }
 
-        public void setTrainLineId(String arr) {
-            this.trainLineId = arr;
+        public int getSubwayId() {
+            return this.SubwayId;
         }
 
-        public void setArrivalDueTime(String arr) {
-            this.arrivalDueTime = Integer.parseInt(arr);
+        public List4Data getViewData() {
+            String resPath = "@drawable/metro" + this.SubwayId;
+            String myPackage = MainActivity.this.getPackageName();
+            List4Data mylist = new List4Data(
+                    getResources().getIdentifier(resPath, "drawable", myPackage),
+                    this.trainLineId,
+                    this.arrivalDueTime / 60 + "분 후 / " + arrivalMsg
+            );
+
+            return mylist;
         }
 
-        public void setArrivalMsg(String arr) {
-            this.arrivalMsg = arr;
-        }
-
-        public StringBuffer getSubwayData() {
+/*      public StringBuffer getSubwayData() {
             StringBuffer str = new StringBuffer();
 
             str.append(Integer.toString(SubwayId) + "호선 - ");
@@ -131,6 +160,15 @@ public class MainActivity extends AppCompatActivity {
             str.append(arrivalMsg + "\n");
 
             return str;
+        }*/
+    }
+
+    public class myComparator implements Comparator<SubwayData> {
+        @Override
+        public int compare(SubwayData d1, SubwayData d2) {
+            if(d1.getSubwayId() < d2.getSubwayId()) return -1;
+            if(d1.getSubwayId() > d2.getSubwayId()) return 1;
+            return 0;
         }
     }
 
@@ -139,19 +177,24 @@ public class MainActivity extends AppCompatActivity {
         int startpt, endpt = 0;
         String rawData;
         SubwayData SWData;
+        ArrayList<SubwayData> SWData_list = new ArrayList<SubwayData>();
+        ArrayList<List4Data> convertlist = new ArrayList<List4Data>();
 
         for(int i = 0; i < rowCount; i++) {
             startpt = data.indexOf("<row>", endpt);
             endpt = data.indexOf("</row>", startpt);
             rawData = data.substring(startpt+5, endpt);
 
-            SWData = new SubwayData();
-            SWData.setSubwayId( rawData.substring(rawData.indexOf("<subwayId>")+10, rawData.indexOf("</subwayId")) );
-            SWData.setTrainLineId( rawData.substring(rawData.indexOf("<trainLineNm>")+13, rawData.indexOf("</trainLineNm")) );
-            SWData.setArrivalDueTime( rawData.substring(rawData.indexOf("<barvlDt>")+9, rawData.indexOf("</barvlDt")) );
-            SWData.setArrivalMsg( rawData.substring(rawData.indexOf("<arvlMsg2")+10, rawData.indexOf("</arvlMsg2")) );
-            println(SWData.getSubwayData().toString());
+            SWData = new SubwayData(rawData);
+            SWData_list.add(SWData);
         }
+        SWData_list.sort(new myComparator());
+        for(SubwayData X : SWData_list) {
+            convertlist.add(X.getViewData());
+        }
+
+        ListAdapter listAdapter = new ListAdapter(this, convertlist);
+        setMyAdapter(listAdapter);
     }
 
     public void readDataFromCsv(String filePath) throws IOException {
@@ -166,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
             setStationlist(data[2]);
         }
     }
-
+/*
     public void println(final String data) {
         handler.post(new Runnable() {
             public void run() {
@@ -174,4 +217,80 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+*/
+    public class List4Data {
+
+        private int ImageResource;
+        private String StationName;
+        private String others;
+
+        public List4Data(int ID, String Name, String Details) {
+            this.ImageResource = ID;
+            this.StationName = Name;
+            this.others = Details;
+        }
+
+        public int getImage() {
+            return this.ImageResource;
+        }
+
+        public String getStationName() {
+            return this.StationName;
+        }
+
+        public String getOthers() {
+            return this.others;
+        }
+    }
+
+    public class ListAdapter extends BaseAdapter {
+        Context myContext = null;
+        LayoutInflater myLayoutInflater = null;
+        ArrayList<List4Data> myData;
+
+        public ListAdapter(Context context, ArrayList<List4Data> listData) {
+            myContext = context;
+            myLayoutInflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            myData = listData;
+        }
+
+        @Override
+        public View getView(int pos, View view, ViewGroup parent) {
+            View currentView = myLayoutInflater.inflate(R.layout.listview_custom, parent, false);
+
+            ImageView imageView = (ImageView)currentView.findViewById(R.id.linear_ImageView);
+            TextView stationName = (TextView)currentView.findViewById(R.id.StationName);
+            TextView Details = (TextView)currentView.findViewById(R.id.Details);
+
+            imageView.setImageResource(myData.get(pos).getImage());
+            stationName.setText(myData.get(pos).getStationName());
+            Details.setText(myData.get(pos).getOthers());
+
+            return currentView;
+        }
+
+        @Override
+        public int getCount() {
+            return myData.size();
+        }
+
+        @Override
+        public Object getItem(int pos) {
+            return myData.get(pos);
+        }
+
+        @Override
+        public long getItemId(int pos) {
+            return pos;
+        }
+
+        public void addItem(int imagesrc, String Name, String DT) {
+            List4Data item;
+            item = new List4Data(imagesrc, Name, DT);
+
+            myData.add(item);
+        }
+
+    }
+
 }
